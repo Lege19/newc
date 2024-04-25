@@ -16,26 +16,142 @@ The solution is to create a language where the compiler takes as much of the res
 
 ## Language Syntax
 
-### Variable and Function Declarations
+### Variable Declarations
 
-I will use the Rust `let` keyword for variable declarations. This makes it much easier for the compiler to understand what is going on than it is in C. I also like Rust's idea of using pattern matching for assignments, which is pretty cool as it allows for more complex destructuring assignments without forcing programmers to learn extra syntax.
-I will also use the rust `fn` keyword for function declarations, for similar reasons.
+Many C programmers I have comsulted have expressed a strong preference for C style declarations, i.e.
 
-#### Type Inference
+```c
+// c
+int x = 5;
+```
 
-Type inference for local variables is convenient, and so long as the variable doesn't live too long isn't very harmful to code readability. However type inference for function return types is a liability as it makes it extremely easy to forget to return. So for both of these cases newc will have the same rules as Rust. However one weird case is type inference for constants. Since these *can* be very far reaching, or might just be local to a module. For this reason, in newc, type inference on private constants will be allowed, but not for public constants.
+instead of
 
-For explicit types, newc will use the same syntax as Rust, there is nothing particular that made me choose this syntax other than that I'm used to it.
+```rust
+// rust
+let x: i32 = 5;
+```
+
+This is a pitty because Rust style declarations are objectively better, mainly because Rust declataions are actually pattern matches. They also allow for some extremely powerful patterns, namely `if let` and `let else` (`while let` also exists but is less often used). These can be used as follows:
+
+```rust
+// rust
+fn foo() -> Option<i32> { ... }// foo will sometimes return None and sometimes return Some
+fn bar() {
+	if let Some(x) = foo() {
+		// this code block only runs if foo returned Some
+		println!("{}", x);
+	}
+	let Some(x) = foo() else {
+		// this code block is run if the output of foo() does not match the pattern, i.e. Some(x)
+		// this code block must 'diverge', meaning it must break out of the current scope, often by returning from the function
+		return;
+	};
+	println!("{}", x);
+}
+```
+Something not even rust supports however, is type annotation within patterns (and also some other contexts):
+<a id="type-annotations-in-patterns"></a>
+```rust
+let Some(x: i32) = Some(5);// invalid
+let Some(x): Option<i32> = Some(5);// valid
+```
+This can get quite unergonomic, for example:
+```rust
+struct Foo<A, B, C> {
+	a: A,
+	b: B,
+	c: C
+}
+fn bar() {
+	let Foo {a, b, c} = baz();// (1) valid
+	let Foo {a: i32, b: &'static str, c: bool} = baz();// (2) invalid
+	let Foo {a, b, c}: Foo<i32, &'static str, bool> = baz();// (3) valid
+
+	// which is the easist to tell the types of a, b, and c? Admitedly the difference between (2) and (3) is not so large with this example, but I hope you can see how with more complex types this could get very confusing
+}
+fn baz() -> Foo<i32, &'static str, bool> {
+	Foo {
+		a: 1, 
+		b: "hi", 
+		c: false
+	}
+}
+```
+Sadly, this just wouldn't work very well with C style type "annotations":
+```cpp
+auto Foo {int a, StrSlice b, bool c} = baz();
+// the above implies that
+auto Foo {a, b, c} = baz();
+// is invalid, and instead you would have to write
+auto Foo {auto a, auto b, auto c} = baz();
+// which would be valid but verbose and weird
+```
+The bottom line is that C style declatations allow for type inference, but not true type *annotation*.
+
+The other thing that really puts me off C style declataions is the inflexibility for adding new syntax: by not having a keyword that identifies a statement as a declaration, C syntax becomes less flexible. Changing C declaration syntax in almost any way makes it syntactically ambiguous, even just adding support for generics/templates causes problems as the parser cannot know weather to parse it as a data type or an expression. 
+
+For these reasons I will use `let` for variable declarations. They will be largely the same as with Rust, but I will still make a few changes to make them even more powerful.
+
+1. Pattern syntax will be changed to allow type annotatitions within patterns (like [here](#type-annotations-in-patterns))
+2. `let else` will be extended to allow chaining multiple values that could match:
+	```rust
+	let Some(x) = returns_none() else returns_none() else return;
+	```
+3. `let` will be allowed as a condition more flexibly:
+	```rust
+	// invalid in Rust but valid in newc
+	if let Some(x) = Some(5) && true {
+
+	}
+	// invalid in Rust but valid in newc
+	if let Some(x) = Some(5) && let Some(y) = None {
+
+	}
+	```
+	Note however, that || *cannot* be used with `let` conditions. This is because if only one of multiple patterns was required to match, then the code block would have no way to know which is valid. If instead the intent is to define fallback values to pattern match against, `let else` can be used:
+	```rust
+	// invalid in Rust but valid in newc
+	if let Some(x) = None else Some(5) {
+
+	}
+	```
+	Note that in this context the `let else` chain does not need to end with a block that diverges, as if no match is made then the inner code simply isn't run.
+
+#### Type Inference & Annotations
+
+Type inference for local variables is convenient, and so long as the variable doesn't live too long isn't very harmful to code readability. However one weird case is type inference for constants. Since these *can* be very far reaching, or might just be local to a module. For this reason, in newc, type inference on private constants will be allowed, but not for public constants.
+
+Rust's syntax for type annotations is good, I will use it. However in newc, type annotations will be allowed in more places, such as within patterns and within iterator based `for` statements. 
+
+#### Function Declarations
+
+I will use the `fn` keyword. As with `let`, this allows more flexibility in declarations. Parameters will use the same type annotation syntax as Rust, however the return type will use TypeScript syntax, as in:
+```rust
+// newc
+fn foo(): i32 {
+
+}
+```
+instead of
+```rust
+// rust
+fn foo() -> i32 {
+
+}
+```
+There isn't really anything wrong with `->`, but I suspect the only reason Rust uses it is because Haskell does. It just doesn't make much sense to introduce more syntax when in literally all other conexts type annotation uses `:`.
 
 #### Mutability
 
-Since newc, like Rust, will use pattern matching for assignments, variables will be immutable by default. This is partly for consistency with `match` but mainly because it means programmers will only use mutable variables when they need to (unlike in JavaScript where it `let` is often used for variables that could be `const`.
+Since newc, like Rust, will use pattern matching for assignments, variables will be immutable by default. This is partly for consistency with `match` but mainly because it means programmers will only use mutable variables when they need to (unlike in JavaScript where it `let` is often used for variables that could be `const`).
 
-Mutability in patterns will be the same as in rust: `mut`.
+Mutability in patterns will be the same as in rust, i.e. `let mut`.
 
 ### Move Semantics
 
 *see [Rust by Example](https://doc.rust-lang.org/rust-by-example/scope/move.html) for terminology*
+
 In Rust, all data types (except primitives) have move semantics by default. The programmer can switch their data types to use copy semantics instead by placing `#[derive(Copy)]` before their type declaration.
 Move semantics are very useful for safer heap allocation, because they prevent many use after free and double free errors. For example, the `Box<T>` smart pointer in Rust manages some data on the heap, if a second `Box<T>` were accidentally created, the both `Box<T>`s would try to free the data in their destructors.
 newc *will* have support for move semantics, they can be enabled by adding `move` to a newtype declaration:
@@ -376,11 +492,11 @@ There are four types of cast:
 
 - **Reliable Casts**<a name="reliable-casts"></a>
   Some types can be cast to other types with zero risk of any data loss/undefined behaviour. For example, an `int8` will always be able to be safely converted to an `int16`. The `#` operator can be used to reliably cast with the type inferred, or with the type explicit: `#<T>`.
-- **Unreliable Casts**<a name="unreliable-casts"></a>
+- **Unreliable Casts**<a id="unreliable-casts"></a>
   Other types can *sometimes* be safely converted, for example an `int32` will sometimes be valid as a `char`, but other times it will not be. Unreliable casts return a `Result` because they may fail. The `#?` operator can be used to reliably cast with the type inferred, or with the type explicit: `#?<T>`.
-- **Unsafe Casts**<a name="unsafe-casts"></a>
+- **Unsafe Casts**<a id="unsafe-casts"></a>
   Unsafe casts are a lot like unreliable casts, but do not return `Result`s because it is left up to the programmer to ensure the cast is valid. This results in undefined behaviour or a crash if the cast is invalid. The `#~` operator can be used to reliably cast with the type inferred, or with the type explicit: `#~<T>`.
-- **Bit Casts**<a name="bit-casts"></a>
+- **Bit Casts**<a id="bit-casts"></a>
   Bit casts are casts where no actual data conversion is performed, they simply exist to tell the type system to treat one type as another. They don't get their own syntax but can be achieved with `union`s or with `bit_cast(value)`
 
 #### Integer Casts
