@@ -642,7 +642,7 @@ I considered allowing the `#` to be dropped when it was clear that it referred t
 
 #### Procedural macros in newc
 
-Procedural macros don't have to be in a separate crate, but they must be in their own files. The compiler will compile any files with a `.pcrs` file extension (instead of `.crs`). This has the potential to slow compile times on huge projects, so if a `proc-macros` key is provided in `package.toml`, then the compiler will restrict its search to files in the directory(s) specified.
+Procedural macros don't have to be in a separate crate, but they must be in their own files. The compiler will compile any files with a `.pnc` file extension (instead of `.nc`). This has the potential to slow compile times on huge projects, so if a `proc-macros` key is provided in `package.toml`, then the compiler will restrict its search to files in the directory(s) specified.
 
 In newc, procedural macros are divided into the same three categories as in Rust:
 
@@ -669,58 +669,3 @@ Note that `name` doesn't have to be in scope, or even be a trait. It just means 
 - `pub fn foo(args: A, item: TokenTree) -> TokenTree { ... }.attribute()`
 - `pub fn foo(args: A, item: TokenTree) -> Result<TokenTree, HStr> { ... }.attribute()`
 
-# Solution
-
-# Testing
-
-# Evaluation
-
-# Appendix
-
-## Language Design ExamplesLanguage Syntax
-
-## Pointers
-
-In C pointers are created using the `&` operator, and dereferenced using the `*` operator. However to declare a pointer variable some C programmers use `T* foo`, and some use `T *foo`, the former preferred by some because it makes it clearer that the pointer is part of the type. Whereas the latter is more widely used because it avoids confusion with having multiple declarations in one statement (in: `T* foo, bar;` , `foo` is a pointer but `bar` is not).
-This is a common source of confusion in C so I will instead use `&T foo` to declare a pointer variable in C+. This means that `&` means the same thing in variable declarations as in expressions, which will make C+ easier to learn, and avoid weird edge cases.
-
-## Integers
-
-C's integer types can be very confusing because they have different lengths depending on what processor the program is compiled for. In C23, new integer types were added: `_BigInt(n)`, and `unsigned _BigInt(n)` (where n is the number of bits) to reduce this confusion. C also has the `size_t` type, which corresponds to Rust's `usize` type and is and unsigned integer large enough to include all memory addresses, so it is the same size as a pointer.
-I will use a system that makes the size of integers more explicit, while still trying to remain familiar to C programmers:
-
-- `int8`
-- `int16`
-- `int32`
-- `int64`
-- `uint8`
-- `uint16`
-- `uint32`
-- `uint64`
-- `size_t`
-- `ssize_t`
-
-Additionally the `char` type that C programmers use for all 8-bit integers will be replaced with a Rust-style `char`, so it will be four bytes long and guaranteed to hold a valid ['Unicode Scalar Value'](https://www.unicode.org/glossary/#unicode_scalar_value). However as C+ is a fundamentally unsafe language, this will be difficult to enforce as such, these restriction will be placed on the `char` type:
-
-- `char`s are immutable and can only be treated as integers by casting them to a 32-bit integer type
-- 32-bit integer types can only be cast into `char`s using an [unsafe cast](#unsafe-casts)
-
-## Casts
-
-All casts in C+ are 'explicit', but in most cases they can be made very short by the compiler inferring the destination type, so the programmer normally only needs to add a single character before the data to be casted.
-
-### Reliable Casts
-
-Some types can be casted to other types with zero risk of any data loss/undefined behaviour. For example, an `int8` will always be able to be safely converted to an `int16`.
-
-### Unreliable Casts
-
-Other types can *sometimes* be safely converted, for example an `int32` will sometimes be valid as a `char`, but other times it will not be. Unreliable casts return a `Result` because they may fail
-
-### Unsafe Casts
-
-Unsafe casts can be used with the same types as [Unreliable Casts](#unreliable-casts), however they do not return `Result`s because it is left up to the programmer to ensure the cast is valid. This results in undefined behaviour if the cast is invalid.
-
-### Raw Casts
-
-In extremely rare occasions, usually due to extreme optimisation, programmers may want to cast between to data types without performing any actual data conversion. For example in Quake II's fast inverse square-root algorithm. C+ allows this, but it should be use *very* sparingly.
