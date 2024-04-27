@@ -1,3 +1,5 @@
+DISCLAIMER: This document is very much a work in progress, most sections are incomplete or outdated, all decisions made so far are up for debate.
+
 # newc
 
 Despite being over 50 years old, C is still in heavy use today, even though other alternatives like Rust or C++ share many of the advantages of C. So what keeps developers using C all these years later? Simplicity. In C very little goes on between the code you write and what is executed by the CPU, however in Rust the compiler is always there interfering to make sure your code is safe, while many programmers feel that C++ is badly designed, and tries to combine too many different things. That said, modern C still has many quirks, probably because most of it was designed 50 years ago. Thus I propose newc. A language with the transparent workings of C, with a modern syntax and developer experience.
