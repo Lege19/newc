@@ -154,14 +154,11 @@ Mutability in patterns will be the same as in rust, i.e. `let mut`.
 
 *see [Rust by Example](https://doc.rust-lang.org/rust-by-example/scope/move.html) for terminology*
 
-In Rust, all data types (except primitives) have move semantics by default. The programmer can switch their data types to use copy semantics instead by placing `#[derive(Copy)]` before their type declaration.
-Move semantics are very useful for safer heap allocation, because they prevent many use after free and double free errors. For example, the `Box<T>` smart pointer in Rust manages some data on the heap, if a second `Box<T>` were accidentally created, the both `Box<T>`s would try to free the data in their destructors.
-newc *will* have support for move semantics, they can be enabled by adding `move` to a newtype declaration:
+In Rust, all data types (except primitives) have move semantics by default. The programmer can switch their data types to use copy semantics instead by placing `#[derive(Copy)]` before their type declaration. This is much safer because it is difficult to have a type that *should* use move semantics but instead uses copy, however C programmers would *hate* this because it would feel like the compiler interfereing where it doesn't need to.
 
-```Rust
-// newc
-move subnewtype Box<T> = &T;
-```
+Move semantics are extremely useful however, as they make it easier to write memory safe heap allocation. So newc needs to support them in some way. I considered implementing them as a marker trait, like how Rust `Copy` works, however I think it's nicer to at least pretent that move semantics are a implemented in newc (instead of in the compiler), so instead I will allow programmers to write `Move<T>` to represent a type `T` with move semantics. `Move<T>` uses [subtype inheritance](#subtype-inheritance) to have the same functionality as `T`.
+
+In C++ move assignments use the `std::move` method, which I think will be better for newc than just using regular assignment syntax as Rust does, since it means that `=` means the same thing regardless of the data types on each side.
 
 ### Control Flow
 
@@ -187,11 +184,9 @@ Rust doesn't have a `do {} while condition;`, and although I have never needed i
 
 #### `for`
 
-In Rust, `for` loops can only be used with an iterator: (`for i in iterator`), this is usually fine, but it does miss out on some flexibility offered by C's `for` loops (`for (initialiser; condition; updater)`, so newc will support both. The compiler will interpret one or the other depending on whether there are parenthesis (conveniently both C and Rust reject missing or unneeded parenthesis, so this is compatible with both).
+In Rust, `for` loops can only be used with an iterator: (`for i in iterator`), this is usually fine, but it does miss out on some flexibility offered by C's `for` loops (`for (initialiser; condition; updater)`), so newc will support both. The compiler will interpret one or the other depending on whether there are parenthesis (conveniently both C and Rust reject missing or unneeded parenthesis, so this is 'compatible' with both).
 
 ### Types
-
-Rust has a wonderful type system so most of newc's type system will be the same.
 
 #### Pointers
 
@@ -199,7 +194,7 @@ In C pointers are created using the `&` operator, and dereferenced using the `*`
 This is a common source of confusion in C so I will instead use `&T foo` to declare a pointer variable in newc. This means that `&` means the same thing in variable declarations as in expressions, which will make newc easier to learn, and avoid weird edge cases.
 
 When applied to a value, `&` is an operator.
-When applied to a data type, `&T` is syntactic sugar for `Ptr<T>`, which is in turn defined as `subnewtype Ptr<T> = uintsize`
+When applied to a data type, `&T` is syntactic sugar for `Ptr<T>`, which is in turn defined as `subtype Ptr<T> = uintsize`
 
 #### Fat Pointers
 
@@ -209,9 +204,9 @@ Rust supports fat pointers for Unsized types and for trait objects. This would b
 
 Slices in Rust are great to work with, and newc hopes to achieve similar ease of use, but since all pointers in newc are thin pointers, Slices will instead be defined as:
 
-```C
+```rust
 // newc
-subnewtype Slice<T> = struct {
+subtype Slice<T> = struct {
 	ptr: &T,
 	len: uintsize
 ```
@@ -303,7 +298,7 @@ I fell these better describe their purpose than the terms used in Rust and C.
 
 Structs in newc will be the same as structs in Rust.
 
-Tuples however will be declared with `tuple Name { T1, T2, T3 }`. This will be much easier to parse and means that all types in newc are defined as `keyword Name { ... }` (yay consistency).
+Tuples however will be declared with `tuple Name { T1, T2, T3 }`. This will be easier to parse and means that all types in newc are defined as `keyword Name { ... }` (yay consistency).
 
 #### Anonymous/Inline Types
 
@@ -383,6 +378,10 @@ subtype MyType = T;// Where T is any type from the parent type set
 
 Note that each time `subtype` is used it creates a new type set
 
+#### Subtype inheritance
+
+Subtypes inherit any traits and methods implemented by the parent type. However you *can* also override methods.
+
 #### Type Declarations
 
 Structs can be declared in the exact same way as Rust structs, but this is syntactic sugar for:
@@ -438,9 +437,9 @@ Rust has two* main string types:
 **there is also  `str` which is unsized and therefore cannot be used directly*
 These are nice to work with, but their names give no suggestion to what each actually is. Instead strings in newc will be defined as follows:
 
-```c
-subnewtype HStr = Box<uint8[]>;
-subnewtype StrSlice = Slice<uint8>;
+```rust
+subtype HStr = Box<uint8[]>;
+subtype StrSlice = Slice<uint8>;
 ```
 
 ### Inline return
